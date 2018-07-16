@@ -7,7 +7,7 @@
 
 const request = require('request');
 const Q = require('q');
-
+const config = require('./config')
 const requesters = {}; // Requesters object to export - 'require'd by index.js
 
 /**
@@ -147,6 +147,7 @@ requesters.findFreeRoom = function findFreeRoom(token, startTime, endTime, names
 
       request.get(toGet, (err, response, body) => {
         const parsedBody = JSON.parse(body);
+        console.log(parsedBody);
         if (err) {
           deferred.reject(err);
         } else if (parsedBody.error) {
@@ -168,6 +169,70 @@ requesters.findFreeRoom = function findFreeRoom(token, startTime, endTime, names
       if (calendarsUnavailable === calendarsTotal) {
         deferred.resolve(false);
       }
+    }
+  });
+  return deferred.promise;
+};
+
+/**
+ * requesters.findFreeRooms - find free rooms from API
+ *
+ * @param  {string} token The JWT access token provided by the Alexa Skill
+ * @return {promise}      Promise resolved to JSON containing all calendars.
+ */
+requesters.findFreeRooms = function findFreeRooms(token, startTime, endTime) {
+  const deferred = Q.defer();
+  const meeting = {
+    "isOrganizerOptional": true,
+    "attendees": config.testNames.map(function (room) {
+      return { 
+        "type": "optional",  
+        "emailAddress": { 
+          "name": room,
+          "address": room+"@bridgeitoi.onmicrosoft.com" 
+        }
+
+      }
+    }),
+    "timeConstraint": {
+      "activityDomain":"unrestricted", 
+      "timeslots": [
+        { 
+          "start": { 
+            "dateTime": startTime,  
+            "timeZone": "UTC" 
+          },  
+          "end": { 
+            "dateTime": endTime,  
+            "timeZone": "UTC"
+          } 
+        } 
+      ] 
+    }
+    }; 
+    console.log( JSON.stringify(meeting));
+  
+  const toPost = {
+    /* In order to obtain owner, which I require for consistency, the beta endpoint must be used.
+     * TODO: When stable versions are updated, change this endpoint. */
+    url: 'https://graph.microsoft.com/v1.0/me/findMeetingTimes',
+    headers: {
+      authorization: `Bearer ${token}`,
+     'content-type': 'application/json',
+    },
+    body: JSON.stringify(meeting),
+  };
+
+  request.post(toPost, (err, response, body) => {
+    const parsedBody = JSON.parse(body);
+    console.log(body);
+    if (err) {
+      deferred.reject(err);
+    } else if (parsedBody.error) {
+      deferred.reject(parsedBody.error.message);
+    } else {
+      const attendees = parsedBody.meetingTimeSuggestions[0].attendeeAvailability.filter(atendee => atendee.availability === 'free');
+      deferred.resolve(attendees[0].attendee.emailAddress);
     }
   });
   return deferred.promise;

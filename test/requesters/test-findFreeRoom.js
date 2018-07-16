@@ -5,6 +5,7 @@ console.log('\n----- findFreeRoom ----- \n');
 
 requesters.getCalendars(config.token)
 .then((parsedCals) => {
+  console.log(parsedCals);
   requesters.findFreeRoom(
     config.token,
     config.startTime,
